@@ -238,9 +238,9 @@ class BasicRecurrentEntityEncoder(tf.keras.Model):
         self.fc2 = tf.keras.layers.Dense(units=entity_embedding_dim)
         self.sent_encoder_module = Sent_encoder()
 
-    # @property
-    # def variables(self):
-    #     return self.trainable_variables+self.entity_cell.variables
+
+    def get_embeddings(self, input):
+        return tf.nn.embedding_lookup(self.embedding_matrix, input)
 
     def call(self, inputs, keys, initial_entity_hidden_state=None,
              use_shared_keys=False, return_last=True, **kwargs):
@@ -255,14 +255,21 @@ class BasicRecurrentEntityEncoder(tf.keras.Model):
 
         if len(inputs) != 2:
             raise AttributeError('expected 2 inputs but', len(inputs), 'were given')
-        prgrph, prgrph_mask = inputs
+        prgrph, prgrph_mask, question = inputs
+        prgrph=tf.convert_to_tensor(prgrph)
         prgrph_mask = tf.convert_to_tensor(prgrph_mask)
+        question=tf.convert_to_tensor(question)
         batch_size = tf.shape(prgrph)[0]
         max_sent_num = tf.shape(prgrph)[1]
-        prgrph_embeddings_0 = tf.nn.embedding_lookup(self.embedding_matrix, prgrph)
+        prgrph_embeddings_0 = self.get_embeddings(prgrph)
         prgrph_embeddings_0 = tf.convert_to_tensor(prgrph_embeddings_0)
         prgrph_embeddings_1 = self.fc1(prgrph_embeddings_0)
         prgrph_embeddings = self.fc2(prgrph_embeddings_1)
+
+        question_embedding_0=self.get_embeddings(question)
+        question_embedding_1=self.fc1(question_embedding_0)
+        question_embeddings=self.fc2(question_embedding_1)
+        encoded_question=self.sent_encoder_module(question_embeddings)
         'prgrph_embeddings shape: [batch_size, max_sent_num, max_sent_len, embedding_dim]'
         encoded_sents = tf.zeros([batch_size, 1, tf.shape(prgrph_embeddings)[3]])
 
@@ -302,19 +309,17 @@ class BasicRecurrentEntityEncoder(tf.keras.Model):
                                                        keys=keys,
                                                        initial_entity_hidden_state=initial_entity_hidden_state,
                                                        use_shared_keys=use_shared_keys,
-                                                       return_last=return_last)
+                                                       return_last=return_last), encoded_question
 
 
 class RecurrentEntitiyDecoder(tf.keras.layers.Layer):
-    def __init__(self, embedding_matrix, fc_layer1, fc_layer2,vocab_size=None, softmax_layer=None, activation=None, name=None, **kwargs):
+    def __init__(self, embedding_matrix, vocab_size=None, softmax_layer=None, activation=None,
+                 name=None, **kwargs):
         if name is None:
             name = 'RecurrentEntitiyDecoder'
         super().__init__(name=name)
         self.embedding_matrix = embedding_matrix
         self.embedding_dim = tf.shape(embedding_matrix)[1]
-
-        self.fc1 = fc_layer1
-        self.fc2 = fc_layer2
 
         if softmax_layer is None:
             if vocab_size is None:
@@ -384,17 +389,12 @@ class RecurrentEntitiyDecoder(tf.keras.layers.Layer):
         if len(inputs) != 2:
             raise AttributeError('expected 2 inputs but', len(inputs), 'were given')
 
-        entity_hiddens, question = inputs
+        entity_hiddens, encoded_question = inputs
         entity_hiddens = tf.convert_to_tensor(entity_hiddens)
-        question = tf.convert_to_tensor(question)
         keys_mask = tf.convert_to_tensor(keys_mask)
 
-        embedded_qeustion_0 = self.get_embeddings(question)
-        embedded_qeustion_1 = self.fc1(embedded_qeustion_0)
-        embedded_qeustion = self.fc2(embedded_qeustion_1)
-
-        u = self.attention_entities(embedded_qeustion, entity_hiddens, keys_mask)
-        output = self.softmax_layer(embedded_qeustion + tf.matmul(self.H, u))
+        u = self.attention_entities(encoded_question, entity_hiddens, keys_mask)
+        output = self.softmax_layer(encoded_question + tf.matmul(self.H, u))
         return output
 
 
@@ -403,7 +403,8 @@ class Model(tf.keras.Model):
                  entity_cell=None, vocab_size=None, softmax_layer=None, activation=None):
         super().__init__()
         self.encoder = BasicRecurrentEntityEncoder(embedding_matrix=embedding_matrix,
-                                                   max_entity_num=max_entity_num, entity_embedding_dim=entity_embedding_dim,
+                                                   max_entity_num=max_entity_num,
+                                                   entity_embedding_dim=entity_embedding_dim,
                                                    entity_cell=entity_cell)
         self.decoder = RecurrentEntitiyDecoder(embedding_matrix=embedding_matrix,
                                                entity_cell=entity_cell, entity_embedding_dim=entity_embedding_dim,
@@ -416,11 +417,10 @@ class Model(tf.keras.Model):
          inputs=[prgrph, prgrph_mask, question]
         """
         prgrph, prgrph_mask, question = inputs
-        entity_cell, entity_hiddens = self.encoder(inputs=[prgrph, prgrph_mask], keys=keys,
-                                                   initial_entity_hidden_state=initial_entity_hidden_state,
-                                                   use_shared_keys=use_shared_keys,
-                                                   return_last=return_last)
-        self.decoder.entity_cell=entity_cell
-        output=self.decoder(inputs=[entity_hiddens,question],keys_mask=keys_mask)
+        entity_cell, entity_hiddens, encoded_question = self.encoder(inputs=[prgrph, prgrph_mask, question], keys=keys,
+                                                                      initial_entity_hidden_state=initial_entity_hidden_state,
+                                                                      use_shared_keys=use_shared_keys,
+                                                                      return_last=return_last)
+        self.decoder.entity_cell = entity_cell
+        output = self.decoder(inputs=[entity_hiddens, encoded_question], keys_mask=keys_mask)
         return output
-
