@@ -5,23 +5,31 @@ from tensorflow.contrib import autograph
 K = tf.keras.backend
 
 
-class Sent_encoder(tf.keras.Model):
+class Sent_encoder(tf.keras.layers.Layer):
     def __init__(self, name=None):
         if name is None:
             name = 'sent_encoder'
         super().__init__(name=name)
+        self.positional_mask=None
+        self.built=False
+
+    def build(self, input_shape):
+        input_shapee=input_shape.as_list()
+        self.positional_mask=self.add_weight(shape=[tf.cast(input_shapee[1],tf.int32),tf.cast(input_shapee[2],tf.int32)],name='positional_mask')
+        self.built=True
 
     def call(self, inputs):
         """
         Description:
-            encode given sentences with bag of words algorithm
+            encode given sentences with weigthed bag of words algorithm
         Args:
             input: sents shape: [current_prgrphs_num,max_sent_len,embedding_dim]
             output: encoded sentences of shape [current_prgrphs_num,encoding_dim] , here encoding_dim is equal to embedding_dim
         """
         ' I assume word embedding for indexes greater that sentnece length is zero vector, so it does not effect sentence encoding '
 
-        return tf.reduce_sum(inputs, 1)
+        return tf.reduce_sum(tf.multiply(inputs,self.positional_mask),axis=1)
+
 
 
 class EntityCell(tf.keras.layers.Layer):

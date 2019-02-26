@@ -54,7 +54,8 @@ def train(prgrphs, prgrphs_mask, questions, answers, keys, keys_mask, embedding_
                                                      save_weights_only=True,
                                                      verbose=1)
     # answerss=(tf.one_hot(tf.squeeze(tf.cast(answers,np.int32),axis=1),depth=30522)*(1-(10**-7))+10**-7)
-    answerss=np.eye(30522)[np.squeeze(answers,axis=1)]
+    answerss=np.zeros([batch_size, vocab_size],np.int32)
+    answerss[np.arange(batch_size),np.squeeze(answers,axis=1)]=1
     history = model.fit(x=[prgrphs, prgrphs_mask, questions, keys, keys_mask], y=answerss, batch_size=batch_size,
                         validation_split=validation_split, epochs=epochs, callbacks=[cp_callback])
 
@@ -92,5 +93,13 @@ if __name__=="__main__":
     keys_mask=keys_mask[:paragraphs_num-(paragraphs_num % batch_size)]
     questions=questions[:paragraphs_num-(paragraphs_num % batch_size)]
     answers=answers[:paragraphs_num-(paragraphs_num % batch_size)]
+
+    paragraphs = paragraphs[:32]
+    paragraphs_mask = paragraphs_mask[:32]
+    keys = keys[:32]
+    keys_mask = keys_mask[:32]
+    questions = questions[:32]
+    answers = answers[:32]
+
     train(paragraphs, paragraphs_mask, questions, answers, keys, keys_mask, embedding_matrix, 20, 100, 30522,
           0.01, "/content/drive/My Drive/Colab Notebooks/bAbI", batch_size, 0, 5)
