@@ -258,7 +258,7 @@ class BasicRecurrentEntityEncoder(tf.keras.layers.Layer):
         '''
         vocab_size = self.embd_matrix.shape[0]
         dim = self.embd_matrix.shape[1]
-        self.embedding_matrix = self.add_weight(shape=[36, dim], name='embedding_matrix', dtype=tf.float32,
+        self.embedding_matrix = self.add_weight(shape=[vocab_size, dim], name='embedding_matrix', dtype=tf.float32,
                                                 trainable=True, initializer=tf.keras.initializers.TruncatedNormal())
         self.built = True
 
@@ -276,7 +276,14 @@ class BasicRecurrentEntityEncoder(tf.keras.layers.Layer):
             keyss: entity keys of shape : [batch_size, max_entity_num, entity_embedding_dim]
             initial_entity_hidden_state
             use_shared_keys: bool
-            return_last: entity_cell and encoded_sents of shape [batch_size, max_num_sent, sents_encoding_dim]
+
+
+
+
+
+
+
+return_last: entity_cell and encoded_sents of shape [batch_size, max_num_sent, sents_encoding_dim]
         """
 
         if len(inputs) != 3:
@@ -403,6 +410,9 @@ class RecurrentEntitiyDecoder(tf.keras.layers.Layer):
 
 
 class Model(tf.keras.Model):
+    """ 
+    Main Model
+    """
     def __init__(self, embedding_matrix, max_entity_num=None, entity_embedding_dim=None,
                  entity_cell=None, vocab_size=None, softmax_layer=None, activation=None):
         super().__init__()
@@ -420,7 +430,12 @@ class Model(tf.keras.Model):
     def call(self, inputs, initial_entity_hidden_state=None,
              use_shared_keys=False, return_last=True):
         """
-         inputs=[prgrph, prgrph_mask, question]
+         inputs=[prgrph, prgrph_mask, question,keys,keys_mask]
+         prgrph shape: [batch_size, max_sent_num, max_sent_len]
+         prgrph_mask shape: [batch_size, max_sent_num, max_sent_len]
+         question shape: [batch_size, max_sent_len]
+         keys shape: [batch_size, entity_num]
+         keys_mask shape: [batch_size, entity_num]
         """
         prgrph, prgrph_mask, question, keys, keys_mask = inputs
         prgrph = tf.cast(prgrph, tf.int32)
