@@ -276,14 +276,7 @@ class BasicRecurrentEntityEncoder(tf.keras.layers.Layer):
             keyss: entity keys of shape : [batch_size, max_entity_num, entity_embedding_dim]
             initial_entity_hidden_state
             use_shared_keys: bool
-
-
-
-
-
-
-
-return_last: entity_cell and encoded_sents of shape [batch_size, max_num_sent, sents_encoding_dim]
+            return_last: entity_cell and encoded_sents of shape [batch_size, max_num_sent, sents_encoding_dim]
         """
 
         if len(inputs) != 3:
